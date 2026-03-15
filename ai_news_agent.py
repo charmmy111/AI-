@@ -14,7 +14,7 @@ WEBHOOK_URL = os.getenv("WEBHOOK_URL")
 if not OPENAI_API_KEY or not WEBHOOK_URL:
     raise ValueError("缺少 API_KEY 或 WEBHOOK_URL 环境变量！请检查 GitHub Secrets 设置。")
 
-client = OpenAI(api_key=OPENAI_API_KEY, base_url="https://api.deepseek.com/v1")
+client = OpenAI(api_key=OPENAI_API_KEY, base_url="https://api.siliconflow.cn/v1")
 
 # 订阅的RSS源列表
 RSS_FEEDS = [
@@ -51,7 +51,7 @@ def process_with_ai(news_text):
     """
 
     response = client.chat.completions.create(
-        model="deepseek-chat",  # 根据你使用的API替换模型名字
+        model="Qwen/Qwen2.5-7B-Instruct",  # 根据你使用的API替换模型名字
         messages=[{"role": "user", "content": prompt}],
         temperature=0.3  # 保持输出的稳定性
     )
