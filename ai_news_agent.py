@@ -18,8 +18,10 @@ client = OpenAI(api_key=OPENAI_API_KEY, base_url="https://api.siliconflow.cn/v1"
 
 # 订阅的RSS源列表
 RSS_FEEDS = [
-    "https://news.ycombinator.com/rss",  # Hacker News
-    # 可以添加更多关于AI的RSS源
+    "https://techcrunch.com/category/artificial-intelligence/feed/", # TechCrunch 专属 AI 频道 (极力推荐，质量很高)
+    "https://feed.infoq.com/ai-ml-data-eng/news.rss",                # InfoQ AI 频道
+    "https://huggingface.co/blog/feed.xml",                          # Hugging Face 官方博客 (全球最大AI开源社区)
+    "https://news.ycombinator.com/rss",                              # Hacker News (保留作为补充)
 ]
 
 
