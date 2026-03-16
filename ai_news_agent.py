@@ -31,7 +31,7 @@ def fetch_news():
     for url in RSS_FEEDS:
         feed = feedparser.parse(url)
         # 只取前15条，避免超过大模型上下文限制
-        for entry in feed.entries[:15]:
+        for entry in feed.entries[:30]:
             today_news.append(f"标题: {entry.title}\n链接: {entry.link}\n摘要: {entry.get('description', '无')}\n")
     return "\n---\n".join(today_news)
 
