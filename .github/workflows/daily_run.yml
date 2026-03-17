@@ -19,7 +19,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pip install feedparser openai requests
+          pip install feedparser openai requests beautifulsoup4
 
       - name: Run AI News Agent
         env:
