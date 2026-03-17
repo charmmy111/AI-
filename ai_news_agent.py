@@ -1,86 +1,142 @@
 import feedparser
-from openai import OpenAI
 import requests
+from bs4 import BeautifulSoup
+from openai import OpenAI
 import json
 import os
+import random
 from datetime import datetime
 
-# 1. 配置参数 (改为从环境变量读取)
-# 这样写的意思是：去系统中寻找叫 OPENAI_API_KEY 的变量
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+# ================= 1. 配置参数 =================
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY") 
 WEBHOOK_URL = os.getenv("WEBHOOK_URL")
 
-# 检查一下有没有成功读取到，如果没有，程序报错提醒
 if not OPENAI_API_KEY or not WEBHOOK_URL:
-    raise ValueError("缺少 API_KEY 或 WEBHOOK_URL 环境变量！请检查 GitHub Secrets 设置。")
+    raise ValueError("缺少环境变量！请检查 GitHub Secrets 设置。")
 
-client = OpenAI(api_key=OPENAI_API_KEY, base_url="https://api.siliconflow.cn/v1")
+# 请根据你使用的平台（硅基流动或谷歌）修改 base_url
+client = OpenAI(api_key=OPENAI_API_KEY, base_url="https://api.siliconflow.cn/v1") 
 
-# 订阅的RSS源列表
+# 高质量 AI 新闻源
 RSS_FEEDS = [
-    "https://techcrunch.com/category/artificial-intelligence/feed/", # TechCrunch 专属 AI 频道 (极力推荐，质量很高)
-    "https://feed.infoq.com/ai-ml-data-eng/news.rss",                # InfoQ AI 频道
-    "https://huggingface.co/blog/feed.xml",                          # Hugging Face 官方博客 (全球最大AI开源社区)
-    "https://news.ycombinator.com/rss",                              # Hacker News (保留作为补充)
+    "https://techcrunch.com/category/artificial-intelligence/feed/", 
+    "https://feed.infoq.com/ai-ml-data-eng/news.rss",                
+    "https://news.ycombinator.com/rss",                              
 ]
 
+# ================= 2. 核心功能函数 =================
 
-def fetch_news():
-    """从RSS源获取今日新闻"""
-    today_news = []
+def get_random_article():
+    """从所有新闻源中获取所有文章列表，并随机挑选一篇"""
+    all_articles = []
     for url in RSS_FEEDS:
-        feed = feedparser.parse(url)
-        # 只取前15条，避免超过大模型上下文限制
-        for entry in feed.entries[:30]:
-            today_news.append(f"标题: {entry.title}\n链接: {entry.link}\n摘要: {entry.get('description', '无')}\n")
-    return "\n---\n".join(today_news)
+        try:
+            feed = feedparser.parse(url)
+            for entry in feed.entries[:10]: 
+                all_articles.append({
+                    "title": entry.title,
+                    "link": entry.link
+                })
+        except Exception as e:
+            print(f"解析RSS源 {url} 失败: {e}")
+            
+    if not all_articles:
+        return None
+    
+    # 🌟 核心：从总池子中随机抽选 1 篇
+    selected = random.choice(all_articles)
+    return selected
 
+def scrape_full_text(url):
+    """进入该文章的真实网页，爬取完整正文内容"""
+    # 伪装成真实的浏览器访问，防止被网站拦截
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+    }
+    try:
+        response = requests.get(url, headers=headers, timeout=10)
+        # 使用 BeautifulSoup 解析网页 HTML
+        soup = BeautifulSoup(response.text, 'html.parser')
+        
+        # 提取网页中所有的 <p> 标签（通常是文章正文段落）
+        paragraphs = soup.find_all('p')
+        full_text = "\n".join([p.get_text() for p in paragraphs])
+        
+        # 如果文章太长，只取前 8000 字，避免超过大模型限制
+        return full_text[:8000]
+    except Exception as e:
+        return f"正文抓取失败: {e}"
 
-def process_with_ai(news_text):
-    """让大模型筛选并总结AI新闻"""
+def process_with_ai(title, url, content):
+    """让大模型对这单篇文章进行深度总结"""
     prompt = f"""
-    你是一个资深的AI科技媒体编辑。请阅读以下从科技媒体抓取的原始新闻列表。
-    你的任务是：
-    1. 筛选出与"人工智能(AI)、大模型、机器学习、前沿科技"相关的有趣或有价值的新闻。忽略完全无关的内容（如纯金融、传统硬件等）。
-    2. 将筛选出的新闻翻译并总结为通俗易懂的中文。
-    3. 输出格式要求为Markdown：
-       - 使用 Emoji 增加可读性 🌟
-       - 包含：新闻标题、一句话核心看点、原文链接。
-       - 排版要美观，条理清晰。
-    4. 只有当提供的内容中【完全没有】任何科技/AI相关字眼时，才回复“今日暂无AI前沿新闻”。只要有稍微相关的，都请总结出来。
+    你是一个资深的AI前沿科技研究员。我为你随机抽取了今天的一篇外网科技文章全文。
+    请你仔细阅读正文，写一篇结构清晰的【深度中文总结笔记】。
+    
+    原文标题：{title}
+    原文链接：{url}
+    
+    以下是爬取到的文章正文：
+    ---
+    {content}
+    ---
 
-    以下是原始新闻：
-    {news_text}
+    请按照以下 Markdown 格式输出你的总结（排版要精美）：
+    
+    # 📌 [将原标题翻译成恰当的中文]
+    
+    **原文链接：** {url}
+    
+    ### 📖 核心摘要 (用精炼的一两句话概括这篇文章讲了什么核心事情)
+    ...
+    
+    ### 💡 深度解析 (根据正文，分点列出3-4个核心细节、技术重点或行业影响)
+    - ...
+    - ...
+    - ...
+    
+    ### 🧠 研究员短评 (用你专业的视角，用一段话点评一下这件事的意义)
+    ...
     """
-
+    
     response = client.chat.completions.create(
-        model="Qwen/Qwen2.5-7B-Instruct",  # 根据你使用的API替换模型名字
+        model="Qwen/Qwen2.5-7B-Instruct", # 根据你使用的平台修改模型名
         messages=[{"role": "user", "content": prompt}],
-        temperature=0.3  # 保持输出的稳定性
+        temperature=0.4 
     )
     return response.choices[0].message.content
 
-
 def push_notification(markdown_text):
-    """推送到飞书/钉钉 (这里以飞书为例)"""
+    """推送到飞书/钉钉"""
     headers = {"Content-Type": "application/json"}
     payload = {
         "msg_type": "text",
         "content": {
-            "text": f"🤖 今日AI前沿早报 ({datetime.now().strftime('%Y-%m-%d')})\n\n{markdown_text}"
+            # 确保这里包含了你机器人的关键词（例如"早报"、"AI"）
+            "text": f"🤖 每日 AI 深度随机抽读 ({datetime.now().strftime('%Y-%m-%d')})\n\n{markdown_text}"
         }
     }
     response = requests.post(WEBHOOK_URL, headers=headers, data=json.dumps(payload))
     print("推送结果:", response.text)
 
-
+# ================= 3. 主程序运行逻辑 =================
 if __name__ == "__main__":
-    print("1. 正在抓取新闻...")
-    raw_news = fetch_news()
-
-    print("2. AI正在筛选和总结...")
-    ai_summary = process_with_ai(raw_news)
-
-    print("3. 正在推送...")
+    print("1. 正在从各大源汇总新闻并随机抽选...")
+    article = get_random_article()
+    
+    if not article:
+        print("未获取到任何文章！")
+        exit()
+        
+    print(f"抽中文章: {article['title']}")
+    print(f"链接: {article['link']}")
+    
+    print("2. 正在潜入网页抓取完整正文...")
+    full_text = scrape_full_text(article['link'])
+    print(f"抓取成功，正文长度: {len(full_text)} 字")
+    
+    print("3. AI 正在深度阅读并写总结笔记...")
+    ai_summary = process_with_ai(article['title'], article['link'], full_text)
+    
+    print("4. 正在推送...")
     push_notification(ai_summary)
-    print("完成！")
